@@ -4,7 +4,7 @@
   "basePath" : "<%= swagger_base_path %>",
   <%-
     def list_resource_parameters
-      path_parameters.tap do |parameters|
+      path_parameters('index').tap do |parameters|
         parameters << { name: 'page[number]', in: :query, type: :string, description: tt(:page_num), required: false }
         parameters << { name: 'page[size]', in: :query, type: :string, description: tt(:page_size), required: false }
         if sortable_fields.present?
@@ -263,7 +263,6 @@
 
     p '* ' * 100
     p route_resouces
-    binding.pry
     p '* ' * 100
 
     doc['paths'][ route_path('index').swagger_path ] = {
@@ -293,7 +292,7 @@
         tags: [route_resouces],
         consumes: ['application/vnd.api+json'],
         produces: ['application/vnd.api+json'],
-        parameters: [create_resource_parameters],
+        parameters: create_resource_parameters,
         responses: create_resource_responses
       }
     })
