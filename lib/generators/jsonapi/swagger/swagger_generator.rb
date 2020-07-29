@@ -69,6 +69,21 @@ module Jsonapi
       resouces_name.tableize
     end
 
+    def route_params_path(method = 'show')
+      route_object(method).required_parts
+    end
+
+    def route_path(method = 'show')
+      r = route_object(method)
+      params = OpenStruct.new({ alias: r.name, path: r.path.spec.to_s, controller: r.defaults[:controller], action: r.defaults[:action], params_path: r.required_parts })
+      params.swagger_path = params.params_path.inject(params.path){|mem, param| mem[":#{param.to_s}"] = "{#{param}}"; mem}
+      params
+    end
+
+    def route_object(method)
+      Rails.application.routes.routes.find{ |r| r.defaults[:controller] == route_resouces && r.defaults[:action] == method }
+    end
+
     def model_class_name
       (class_path + [file_name]).map!(&:camelize).join("::")
     end

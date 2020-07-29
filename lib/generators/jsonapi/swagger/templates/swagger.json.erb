@@ -4,7 +4,7 @@
   "basePath" : "<%= swagger_base_path %>",
   <%-
     def list_resource_parameters
-      [].tap do |parameters|
+      path_parameters.tap do |parameters|
         parameters << { name: 'page[number]', in: :query, type: :string, description: tt(:page_num), required: false }
         parameters << { name: 'page[size]', in: :query, type: :string, description: tt(:page_size), required: false }
         if sortable_fields.present?
@@ -23,9 +23,14 @@
       end
     end
 
+    def path_parameters(method = 'show')
+      route_params_path(method).collect do |param|
+        { name: param, in: :path, type: :integer, description: param.to_s.humanize(keep_id_suffix: true), required: true }
+      end
+    end
+
     def show_resource_parameters
-      [].tap do |parameters|
-        parameters << { name: :id, in: :path, type: :integer, description: 'ID', required: true }
+      path_parameters.tap do |parameters|
         if relationships.present?
           parameters << { name: :include, in: :query, type: :string, description: tt(:include_related_data), required: false }
         end
@@ -36,7 +41,7 @@
       end
     end
 
-    def create_resource_parameters
+    def body_parameters
       parameters = {
         name: :data,
         in: :body,
@@ -54,23 +59,22 @@
           },
         },
         description: tt(:request_body)
-     }
-     parameters[:properties][:data][:properties][:relationships] ||= {}
-     parameters[:properties][:data][:properties][:relationships] = { type: :object, properties: create_relationships_properties }
-     parameters
-    end
-
-    def patch_resource_parameters
-      patch_parameters =  create_resource_parameters.dup
-      patch_parameters[:properties][:data][:properties][:id] ||= {}
-      patch_parameters[:properties][:data][:properties][:id].merge!({ type: :integer, description: 'ID' })
-      parameters = [{ name: :id, in: :path, type: :integer, description: 'ID', required: true }]
-      parameters << patch_parameters
+      }
+      parameters[:properties][:data][:properties][:relationships] ||= {}
+      parameters[:properties][:data][:properties][:relationships] = { type: :object, properties: create_relationships_properties }
       parameters
     end
 
+    def create_resource_parameters
+      path_parameters('create') << body_parameters
+    end
+
+    def patch_resource_parameters
+      path_parameters('update') << body_parameters
+    end
+
     def delete_resource_parameters
-      [{ name: :id, in: :path, type: :integer, description: 'ID', required: true }]
+      path_parameters('destroy')
     end
 
     def properties(attrs: [])
@@ -257,7 +261,12 @@
       }
     end
 
-    doc['paths']["/#{route_resouces}"] = {
+    p '* ' * 100
+    p route_resouces
+    binding.pry
+    p '* ' * 100
+
+    doc['paths'][ route_path('index').swagger_path ] = {
       get: {
         summary: "#{route_resouces} #{tt(:list)}",
         tags: [route_resouces],
@@ -267,7 +276,7 @@
       }
     }
 
-    doc['paths']["/#{route_resouces}/{id}"] = {
+    doc['paths'][ route_path('show').swagger_path ] = {
       get: {
         summary: "#{route_resouces} #{tt(:detail)}",
         tags: [route_resouces],
@@ -277,43 +286,43 @@
       }
     }
 
-if mutable?
-  doc['paths']["/#{route_resouces}"].merge!({
-    post: {
-      summary: "#{route_resouces} #{tt(:create)}",
-      tags: [route_resouces],
-      consumes: ['application/vnd.api+json'],
-      produces: ['application/vnd.api+json'],
-      parameters: [create_resource_parameters],
-      responses: create_resource_responses
-    }
-  })
+  if mutable?
+    doc['paths'][ route_path('create').swagger_path ].merge!({
+      post: {
+        summary: "#{route_resouces} #{tt(:create)}",
+        tags: [route_resouces],
+        consumes: ['application/vnd.api+json'],
+        produces: ['application/vnd.api+json'],
+        parameters: [create_resource_parameters],
+        responses: create_resource_responses
+      }
+    })
 
-  doc['paths']["/#{route_resouces}/{id}"].merge!({
-    patch: {
-      summary: "#{route_resouces} #{tt(:patch)}",
-      tags: [route_resouces],
-      consumes: ['application/vnd.api+json'],
-      produces: ['application/vnd.api+json'],
-      parameters: patch_resource_parameters,
-      responses: show_resource_responses
-    }
-  })
+    doc['paths'][ route_path('update').swagger_path ].merge!({
+      patch: {
+        summary: "#{route_resouces} #{tt(:patch)}",
+        tags: [route_resouces],
+        consumes: ['application/vnd.api+json'],
+        produces: ['application/vnd.api+json'],
+        parameters: patch_resource_parameters,
+        responses: show_resource_responses
+      }
+    })
 
-  doc['paths']["/#{route_resouces}/{id}"].merge!({
-    delete: {
-      summary: "#{route_resouces} #{tt(:delete)}",
-      tags: [route_resouces],
-      produces: ['application/vnd.api+json'],
-      parameters: delete_resource_parameters,
-      responses: delete_resource_responses
-    }
-  })
-else
-  doc['paths']["/#{route_resouces}"].delete(:post)
-  doc['paths']["/#{route_resouces}/{id}"].delete(:patch)
-  doc['paths']["/#{route_resouces}/{id}"].delete(:delete)
-end
+    doc['paths'][ route_path('destroy').swagger_path ].merge!({
+      delete: {
+        summary: "#{route_resouces} #{tt(:delete)}",
+        tags: [route_resouces],
+        produces: ['application/vnd.api+json'],
+        parameters: delete_resource_parameters,
+        responses: delete_resource_responses
+      }
+    })
+  else
+    doc['paths']["/#{route_resouces}"].delete(:post)
+    doc['paths']["/#{route_resouces}/{id}"].delete(:patch)
+    doc['paths']["/#{route_resouces}/{id}"].delete(:delete)
+  end
 -%>
   "paths": <%= JSON.pretty_generate(doc['paths'] ) %>
 }
